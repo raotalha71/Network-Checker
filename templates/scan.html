@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Network - Network Device Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-search"></i> Network Scan</h1>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-gear"></i> Scan Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="scanForm">
+                    <div class="mb-3">
+                        <label for="scanType" class="form-label">Scan Type</label>
+                        <select class="form-select" id="scanType" name="scan_type">
+                            <option value="ping">Ping Scan (Fast, Basic Info)</option>
+                            <option value="nmap">Nmap Scan (Slower, Detailed Info)</option>
+                        </select>
+                        <div class="form-text">
+                            Ping scan is faster but provides basic information. Nmap scan is more detailed but requires nmap to be installed.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="networkRange" class="form-label">Network Range</label>
+                        <input type="text" class="form-control" id="networkRange" name="network_range" 
+                               placeholder="e.g., 192.168.1.0/24" value="">
+                        <div class="form-text">
+                            Leave empty to auto-detect local network. Use CIDR notation for custom ranges.
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="startScanBtn">
+                            <i class="bi bi-search"></i> Start Scan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Scan Progress -->
+        <div class="card mt-4" id="scanProgressCard" style="display: none;">
+            <div class="card-header">
+                <h5><i class="bi bi-clock"></i> Scan Progress</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" id="scanProgressBar" style="width: 0%">
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="scanStatus" class="mb-2">
+                    <span class="badge bg-info">Initializing...</span>
+                </div>
+                
+                <div id="scanDetails">
+                    <small class="text-muted">Preparing to scan network...</small>
+                </div>
+                
+                <div class="mt-3" id="devicesFound" style="display: none;">
+                    <h6>Devices Found:</h6>
+                    <ul id="devicesList" class="list-unstyled"></ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Scan Results -->
+        <div class="card mt-4" id="scanResultsCard" style="display: none;">
+            <div class="card-header">
+                <h5><i class="bi bi-check-circle"></i> Scan Results</h5>
+            </div>
+            <div class="card-body">
+                <div id="scanSummary"></div>
+                <div class="mt-3">
+                    <a href="{{ url_for('devices') }}" class="btn btn-success">
+                        <i class="bi bi-eye"></i> View All Devices
+                    </a>
+                    <button class="btn btn-outline-primary" onclick="startNewScan()">
+                        <i class="bi bi-arrow-clockwise"></i> Scan Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Scan Information</h5>
+            </div>
+            <div class="card-body">
+                <h6>Scan Types</h6>
+                <div class="mb-3">
+                    <strong>Ping Scan</strong>
+                    <ul class="small">
+                        <li>Fast discovery using ICMP ping</li>
+                        <li>Detects online/offline status</li>
+                        <li>Gets basic hostname information</li>
+                        <li>Works without additional tools</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Nmap Scan</strong>
+                    <ul class="small">
+                        <li>Detailed device information</li>
+                        <li>MAC address detection</li>
+                        <li>Vendor identification</li>
+                        <li>Requires nmap installation</li>
+                    </ul>
+                </div>
+                
+                <h6>Network Range</h6>
+                <p class="small">
+                    Use CIDR notation to specify the network range to scan. 
+                    Common examples:
+                </p>
+                <ul class="small">
+                    <li><code>192.168.1.0/24</code> - 192.168.1.1 to 192.168.1.254</li>
+                    <li><code>10.0.0.0/24</code> - 10.0.0.1 to 10.0.0.254</li>
+                    <li><code>172.16.0.0/24</code> - 172.16.0.1 to 172.16.0.254</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> Scan History</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Recent scans will be displayed here.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let scanSocket = null;
+let currentScan = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize socket connection
+    scanSocket = io();
+    
+    // Socket event listeners
+    scanSocket.on('connect', function() {
+        console.log('Connected to server');
+    });
+    
+    scanSocket.on('scan_status', function(data) {
+        updateScanStatus(data);
+    });
+    
+    scanSocket.on('scan_progress', function(data) {
+        updateScanProgress(data);
+    });
+    
+    // Form submission
+    document.getElementById('scanForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        startScan();
+    });
+});
+
+function startScan() {
+    const formData = new FormData(document.getElementById('scanForm'));
+    const scanData = {
+        scan_type: formData.get('scan_type'),
+        network_range: formData.get('network_range') || null
+    };
+    
+    // Show progress card
+    document.getElementById('scanProgressCard').style.display = 'block';
+    document.getElementById('scanResultsCard').style.display = 'none';
+    
+    // Disable start button
+    const startBtn = document.getElementById('startScanBtn');
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Scanning...';
+    
+    // Reset progress
+    document.getElementById('scanProgressBar').style.width = '10%';
+    document.getElementById('scanStatus').innerHTML = '<span class="badge bg-info">Starting scan...</span>';
+    document.getElementById('scanDetails').innerHTML = '<small class="text-muted">Initializing network scan...</small>';
+    
+    // Start scan
+    fetch('/api/scan/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scanData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+            resetScanButton();
+        } else {
+            currentScan = data;
+        }
+    })
+    .catch(error => {
+        console.error('Error starting scan:', error);
+        showError('Failed to start scan');
+        resetScanButton();
+    });
+}
+
+function updateScanStatus(data) {
+    const statusElement = document.getElementById('scanStatus');
+    const detailsElement = document.getElementById('scanDetails');
+    const progressBar = document.getElementById('scanProgressBar');
+    
+    switch(data.status) {
+        case 'started':
+            statusElement.innerHTML = '<span class="badge bg-primary">Scanning...</span>';
+            detailsElement.innerHTML = `<small class="text-muted">${data.message}</small>`;
+            progressBar.style.width = '20%';
+            break;
+            
+        case 'completed':
+            statusElement.innerHTML = '<span class="badge bg-success">Completed</span>';
+            detailsElement.innerHTML = `<small class="text-success">${data.message}</small>`;
+            progressBar.style.width = '100%';
+            
+            // Show results
+            showScanResults(data);
+            resetScanButton();
+            break;
+            
+        case 'error':
+            statusElement.innerHTML = '<span class="badge bg-danger">Error</span>';
+            detailsElement.innerHTML = `<small class="text-danger">${data.message}</small>`;
+            showError(data.message);
+            resetScanButton();
+            break;
+    }
+}
+
+function updateScanProgress(data) {
+    const devicesFoundDiv = document.getElementById('devicesFound');
+    const devicesList = document.getElementById('devicesList');
+    
+    // Show devices found section
+    devicesFoundDiv.style.display = 'block';
+    
+    // Update progress bar
+    const progressBar = document.getElementById('scanProgressBar');
+    const currentProgress = Math.min(30 + (data.devices_found * 2), 90);
+    progressBar.style.width = currentProgress + '%';
+    
+    // Add device to list
+    if (data.current_device) {
+        const listItem = document.createElement('li');
+        listItem.innerHTML = `
+            <i class="bi bi-check-circle text-success"></i> 
+            <code>${data.current_device}</code>
+        `;
+        devicesList.appendChild(listItem);
+        
+        // Scroll to bottom
+        devicesList.scrollTop = devicesList.scrollHeight;
+    }
+    
+    // Update details
+    document.getElementById('scanDetails').innerHTML = 
+        `<small class="text-muted">Found ${data.devices_found} devices...</small>`;
+}
+
+function showScanResults(data) {
+    const resultsCard = document.getElementById('scanResultsCard');
+    const summaryDiv = document.getElementById('scanSummary');
+    
+    summaryDiv.innerHTML = `
+        <div class="alert alert-success">
+            <h6><i class="bi bi-check-circle"></i> Scan Completed Successfully!</h6>
+            <ul class="mb-0">
+                <li>Found <strong>${data.devices_found}</strong> devices</li>
+                <li>Scan duration: <strong>${data.duration ? data.duration.toFixed(2) + ' seconds' : 'Unknown'}</strong></li>
+                <li>New devices have been added to your inventory</li>
+            </ul>
+        </div>
+    `;
+    
+    resultsCard.style.display = 'block';
+}
+
+function resetScanButton() {
+    const startBtn = document.getElementById('startScanBtn');
+    startBtn.disabled = false;
+    startBtn.innerHTML = '<i class="bi bi-search"></i> Start Scan';
+}
+
+function startNewScan() {
+    // Hide results and reset form
+    document.getElementById('scanResultsCard').style.display = 'none';
+    document.getElementById('scanProgressCard').style.display = 'none';
+    document.getElementById('devicesFound').style.display = 'none';
+    document.getElementById('devicesList').innerHTML = '';
+    
+    // Reset form
+    document.getElementById('scanForm').reset();
+}
+
+function showError(message) {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'toast align-items-center text-white bg-danger border-0';
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-exclamation-triangle"></i> ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    // Add to page and show
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remove after shown
+    toast.addEventListener('hidden.bs.toast', () => {
+        document.body.removeChild(toast);
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}Device Groups - Network Device Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-collection"></i> Device Groups</h1>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                <i class="bi bi-plus"></i> Add Group
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Groups Grid -->
+<div class="row">
+    {% for group in groups %}
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center" 
+                 style="background-color: '{{ group.color }}'; color: white;">
+                <h5 class="mb-0">{{ group.name }}</h5>
+                <span class="badge bg-white text-dark">{{ group.device_count }} devices</span>
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ group.description or 'No description available.' }}</p>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <span class="timestamp" data-timestamp="{{ group.created_at }}">Created {{ group.created_at }}</span>
+                    </small>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{{ url_for('devices', group=group.id) }}" class="btn btn-outline-primary">
+                            <i class="bi bi-eye"></i> View Devices
+                        </a>
+                        <button class="btn btn-outline-secondary" 
+                                data-group-id="{{ group.id }}" 
+                                data-group-name="{{ group.name }}" 
+                                data-group-description="{{ group.description }}" 
+                                data-group-color="{{ group.color }}"
+                                onclick="editGroup(this.dataset.groupId, this.dataset.groupName, this.dataset.groupDescription, this.dataset.groupColor)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not groups %}
+<div class="text-center py-5">
+    <i class="bi bi-collection display-4 text-muted"></i>
+    <h4 class="mt-3 text-muted">No groups created yet</h4>
+    <p class="text-muted">Create groups to organize your network devices.</p>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+        <i class="bi bi-plus"></i> Create First Group
+    </button>
+</div>
+{% endif %}
+
+<!-- Add Group Modal -->
+<div class="modal fade" id="addGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addGroupForm">
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">Group Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="groupName" required
+                               placeholder="Enter group name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="groupDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="groupDescription" rows="3"
+                                  placeholder="Optional description for this group"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="groupColor" class="form-label">Color</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="color" class="form-control form-control-color" id="groupColor" value="#007bff">
+                            <div class="color-presets">
+                                <button type="button" class="btn btn-sm border" style="background-color: #007bff; width: 30px; height: 30px;" onclick="setGroupColor('#007bff')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #28a745; width: 30px; height: 30px;" onclick="setGroupColor('#28a745')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #dc3545; width: 30px; height: 30px;" onclick="setGroupColor('#dc3545')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #ffc107; width: 30px; height: 30px;" onclick="setGroupColor('#ffc107')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #17a2b8; width: 30px; height: 30px;" onclick="setGroupColor('#17a2b8')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #6f42c1; width: 30px; height: 30px;" onclick="setGroupColor('#6f42c1')"></button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGroup()">Create Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Modal -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editGroupForm">
+                    <input type="hidden" id="editGroupId">
+                    
+                    <div class="mb-3">
+                        <label for="editGroupName" class="form-label">Group Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editGroupName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editGroupDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editGroupDescription" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editGroupColor" class="form-label">Color</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="color" class="form-control form-control-color" id="editGroupColor">
+                            <div class="color-presets">
+                                <button type="button" class="btn btn-sm border" style="background-color: #007bff; width: 30px; height: 30px;" onclick="setEditGroupColor('#007bff')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #28a745; width: 30px; height: 30px;" onclick="setEditGroupColor('#28a745')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #dc3545; width: 30px; height: 30px;" onclick="setEditGroupColor('#dc3545')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #ffc107; width: 30px; height: 30px;" onclick="setEditGroupColor('#ffc107')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #17a2b8; width: 30px; height: 30px;" onclick="setEditGroupColor('#17a2b8')"></button>
+                                <button type="button" class="btn btn-sm border" style="background-color: #6f42c1; width: 30px; height: 30px;" onclick="setEditGroupColor('#6f42c1')"></button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateGroup()">Update Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script>
+// Moment.js helper
+function moment(dateString) {
+    return {
+        fromNow: function() {
+            return window.moment ? window.moment(dateString).fromNow() : dateString;
+        }
+    };
+}
+
+// Set group color from preset
+function setGroupColor(color) {
+    document.getElementById('groupColor').value = color;
+}
+
+function setEditGroupColor(color) {
+    document.getElementById('editGroupColor').value = color;
+}
+
+// Save new group
+function saveGroup() {
+    const name = document.getElementById('groupName').value.trim();
+    const description = document.getElementById('groupDescription').value.trim();
+    const color = document.getElementById('groupColor').value;
+    
+    if (!name) {
+        showToast('Group name is required', 'error');
+        return;
+    }
+    
+    const data = {
+        name: name,
+        description: description || null,
+        color: color
+    };
+    
+    fetch('/api/group/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Group created successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addGroupModal')).hide();
+            
+            // Reset form
+            document.getElementById('addGroupForm').reset();
+            document.getElementById('groupColor').value = '#007bff';
+            
+            // Reload page
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating group:', error);
+        showToast('Error creating group', 'error');
+    });
+}
+
+// Edit group
+function editGroup(id, name, description, color) {
+    document.getElementById('editGroupId').value = id;
+    document.getElementById('editGroupName').value = name;
+    document.getElementById('editGroupDescription').value = description || '';
+    document.getElementById('editGroupColor').value = color || '#007bff';
+    
+    const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+    modal.show();
+}
+
+// Update group
+function updateGroup() {
+    const id = document.getElementById('editGroupId').value;
+    const name = document.getElementById('editGroupName').value.trim();
+    const description = document.getElementById('editGroupDescription').value.trim();
+    const color = document.getElementById('editGroupColor').value;
+    
+    if (!name) {
+        showToast('Group name is required', 'error');
+        return;
+    }
+    
+    const data = {
+        name: name,
+        description: description || null,
+        color: color
+    };
+    
+    // Note: This endpoint would need to be implemented in the Flask app
+    fetch(`/api/group/${id}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Group updated successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating group:', error);
+        showToast('Group update functionality not implemented yet', 'warning');
+    });
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const bgClass = type === 'error' ? 'bg-danger' : 
+                    type === 'success' ? 'bg-success' : 
+                    type === 'warning' ? 'bg-warning' : 'bg-info';
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white ${bgClass} border-0`;
+    toast.style.position = 'fixed';
+    toast.style.top = '20px';
+    toast.style.right = '20px';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+        document.body.removeChild(toast);
+    });
+}
+</script>
+{% endblock %}
