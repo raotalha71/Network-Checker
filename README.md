@@ -1,32 +1,49 @@
-# Network Device Inventory & Status Dashboard
+# 🌐 Network Device Dashboard
 
-A Flask-based web application for discovering, monitoring, and managing network devices on your local network.
+**Professional network monitoring made simple!** A complete web-based solution for discovering, monitoring, and managing all devices on your network.
 
-## Features
+## ✨ Features
 
-- **Network Discovery**: Automatically discover devices using ping and nmap
-- **Real-time Monitoring**: Live status updates for all discovered devices  
-- **Device Management**: Group devices, add custom names and notes
-- **Historical Logs**: Track device status changes over time
-- **Search & Filter**: Easy device search and filtering capabilities
-- **Web Dashboard**: Clean, responsive web interface
+- 🔍 **Auto Network Discovery** - Finds all devices automatically
+- ⚡ **Real-time Monitoring** - Live status updates via WebSocket
+- 📱 **Modern Web Interface** - Responsive dashboard for any device
+- 🏷️ **Device Organization** - Custom groups, names, and notes
+- 📊 **Network Analytics** - Statistics, charts, and insights
+- 📈 **Historical Tracking** - Monitor performance over time
+- 🔍 **Advanced Search** - Quick filtering and device location
+- 📤 **Data Export** - CSV exports for reporting
 
-## Installation
+## 🚀 ONE-CLICK INSTALLATION
 
-1. Create a virtual environment:
-```bash
-python -m venv venv
-venv\Scripts\activate  # Windows
+**The easiest way - No technical knowledge required!**
+
+### For First-Time Setup:
+```
+🔴 Right-click "ONE_CLICK_SETUP_AND_RUN.bat" → "Run as administrator"
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
+**That's it!** This will:
+- ✅ Install Python automatically (if missing)
+- ✅ Install all required components
+- ✅ Start the dashboard
+- ✅ Open in your browser
+
+### For Daily Use:
+```
+🔵 Double-click "LAUNCH_DASHBOARD.bat"
 ```
 
-3. Run the application:
+## 🛠️ Manual Installation (Advanced Users)
+
+1. **Install Python 3.8+** from [python.org](https://python.org/downloads)
+2. **Run the installer:**
 ```bash
-python app.py
+install_dependencies.bat
+```
+
+3. **Start the dashboard:**
+```bash
+quick_start.bat
 ```
 
 4. Open your browser to `http://localhost:5000`

@@ -1,30 +1,79 @@
 @echo off
-title Network Dashboard - Dependency Installation
+title Network Dashboard - Complete Auto-Setup
 
 echo ============================================
-echo Network Device Dashboard - Setup
+echo Network Device Dashboard - Auto Setup
 echo ============================================
 echo.
-echo Setting up Network Device Dashboard for your system...
-echo This will install all required components automatically.
+echo 🚀 ONE-CLICK COMPLETE INSTALLATION 🚀
+echo This will automatically install EVERYTHING needed:
+echo   • Python (if missing)
+echo   • All dashboard components
+echo   • Start the dashboard
+echo.
+echo No technical knowledge required!
 echo.
 
 :: Check if Python is installed
-echo [1/5] Checking Python installation...
+echo [1/6] Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo ❌ ERROR: Python is not installed on this system!
+    echo 📥 Python not found - downloading and installing automatically...
+    echo This may take 3-5 minutes depending on your internet speed.
     echo.
-    echo Please install Python 3.8 or higher from: https://python.org/downloads/
+    
+    :: Create temp directory
+    if not exist temp mkdir temp
+    
+    :: Download Python installer
+    echo Downloading Python 3.11 installer...
+    powershell -Command "& {Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile 'temp\python_installer.exe'}"
+    
+    if not exist "temp\python_installer.exe" (
+        echo.
+        echo ❌ ERROR: Failed to download Python installer!
+        echo Please check your internet connection.
+        echo.
+        echo Manual installation: https://python.org/downloads/
+        echo ⚠️  Make sure to check "Add Python to PATH" during installation
+        echo.
+        pause
+        exit /b 1
+    )
+    
+    :: Install Python silently
+    echo Installing Python (this may take 2-3 minutes)...
+    echo Please wait - DO NOT CLOSE this window!
+    temp\python_installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_doc=0
+    
+    :: Wait for installation to complete
+    timeout /t 10 /nobreak >nul
+    
+    :: Clean up installer
+    del /q temp\python_installer.exe
+    rmdir temp
+    
+    :: Refresh PATH
+    echo Refreshing system PATH...
+    call :RefreshPath
+    
+    :: Verify Python installation
+    python --version >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo ❌ ERROR: Python installation failed!
+        echo Please restart your computer and try again.
+        echo Or install manually from: https://python.org/downloads/
+        echo.
+        pause
+        exit /b 1
+    )
+    
+    echo ✅ Python installed successfully!
     echo.
-    echo ⚠️  IMPORTANT: During installation, make sure to check:
-    echo    "Add Python to PATH" ✅
-    echo.
-    echo After installing Python, run this script again.
-    echo.
-    pause
-    exit /b 1
+) else (
+    echo ✅ Python found!
 )
 
 echo ✅ Python found!
@@ -45,7 +94,7 @@ if errorlevel 1 (
 echo ✅ Python version is compatible!
 
 :: Create virtual environment
-echo [3/5] Creating isolated environment...
+echo [3/6] Creating isolated environment...
 if exist "venv" (
     echo Virtual environment already exists, removing old version...
     rmdir /s /q venv
@@ -64,7 +113,7 @@ if errorlevel 1 (
 echo ✅ Virtual environment created!
 
 :: Activate virtual environment
-echo [4/5] Activating environment...
+echo [4/6] Activating environment...
 call venv\Scripts\activate.bat
 
 :: Upgrade pip
@@ -72,7 +121,7 @@ echo Upgrading package installer...
 python -m pip install --upgrade pip --quiet
 
 :: Install requirements
-echo [5/5] Installing dashboard components...
+echo [5/6] Installing dashboard components...
 echo This may take 2-3 minutes depending on your internet connection...
 echo.
 
@@ -86,22 +135,49 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Auto-start the dashboard
+echo [6/6] Starting Network Dashboard...
+echo.
+echo Starting the dashboard server...
+echo ⏳ Please wait while the dashboard initializes...
+
+start /min python app.py
+
+:: Wait for server to start
+timeout /t 3 /nobreak >nul
+
+:: Open browser automatically
+echo 🌐 Opening dashboard in your default browser...
+timeout /t 2 /nobreak >nul
+start http://localhost:5000
+
 echo.
 echo ============================================
-echo ✅ Installation Complete!
+echo ✅ SUCCESS! Dashboard is Running! 
 echo ============================================
 echo.
-echo Your Network Device Dashboard is ready to use!
+echo 🎉 Your Network Device Dashboard is now active!
 echo.
-echo To start the dashboard:
-echo   1. Double-click "quick_start.bat"
-echo   2. Open browser to: http://localhost:5000
+echo 📱 Dashboard URL: http://localhost:5000
+echo 🌐 Browser should open automatically
 echo.
-echo The dashboard will automatically detect and scan YOUR network.
+echo 🔍 The dashboard is now scanning YOUR network automatically!
+echo 📊 You'll see your devices appear in real-time.
 echo.
-echo Need help? Check the documentation folder for:
-echo   • User Manual
-echo   • Installation Guide  
-echo   • Troubleshooting Guide
+echo 🛑 To stop the dashboard: Close this window or press Ctrl+C
 echo.
+echo 📚 Need help? Check these guides:
+echo   • USER_MANUAL.md - Complete feature guide
+echo   • TROUBLESHOOTING_GUIDE.md - Problem solutions
+echo.
+echo ⚠️  Keep this window open while using the dashboard!
+echo.
+
+:RefreshPath
+:: Refresh environment variables without restart
+for /f "tokens=2*" %%i in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH') do set "SysPath=%%j"
+for /f "tokens=2*" %%i in ('reg query "HKCU\Environment" /v PATH') do set "UserPath=%%j"
+set "PATH=%UserPath%;%SysPath%"
+goto :eof
+
 pause
