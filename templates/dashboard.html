@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Network Device Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-speedometer2"></i> Network Dashboard</h1>
+            <div>
+                <button class="btn btn-primary" onclick="refreshStats()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <a href="{{ url_for('scan_page') }}" class="btn btn-success">
+                    <i class="bi bi-search"></i> Scan Network
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ stats.total_devices }}</h4>
+                        <p class="card-text">Total Devices</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-hdd-network fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="activeDevices">{{ stats.active_devices }}</h4>
+                        <p class="card-text">Online</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="offlineDevices">{{ stats.offline_devices }}</h4>
+                        <p class="card-text">Offline</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-x-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ groups|length }}</h4>
+                        <p class="card-text">Groups</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-collection fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Devices by Group Chart -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-pie-chart"></i> Devices by Group</h5>
+            </div>
+            <div class="card-body">
+                {% if stats.devices_by_group %}
+                    <canvas id="deviceGroupChart" width="400" height="300"></canvas>
+                {% else %}
+                    <p class="text-muted">No device groups found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Status Changes -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> Recent Status Changes</h5>
+            </div>
+            <div class="card-body">
+                {% if stats.recent_changes %}
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Device</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentChanges">
+                                {% for change in stats.recent_changes %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ change.custom_name or change.hostname or change.ip_address }}</strong>
+                                        {% if change.custom_name and change.hostname %}
+                                            <br><small class="text-muted">{{ change.hostname }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if change.status == 'online' else 'danger' }}">
+                                            {{ change.status|title }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted timestamp" data-timestamp="{{ change.timestamp }}">{{ change.timestamp }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No recent status changes.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Devices Overview -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-list"></i> Device Overview</h5>
+                <a href="{{ url_for('devices') }}" class="btn btn-outline-primary btn-sm">
+                    View All Devices <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="deviceOverviewTable">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>IP Address</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Group</th>
+                                    <th>Last Seen</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for device in devices %}
+                                <tr class="device-row" data-device-id="{{ device.id }}" data-ip="{{ device.ip_address }}">
+                                    <td>
+                                        <span class="status-indicator badge bg-{{ 'success' if device.is_active else 'danger' }}">
+                                            <i class="bi bi-{{ 'check-circle' if device.is_active else 'x-circle' }}"></i>
+                                            {{ 'Online' if device.is_active else 'Offline' }}
+                                        </span>
+                                    </td>
+                                    <td><code>{{ device.ip_address }}</code></td>
+                                    <td>
+                                        <strong>{{ device.custom_name or device.hostname or 'Unknown' }}</strong>
+                                        {% if device.custom_name and device.hostname %}
+                                            <br><small class="text-muted">{{ device.hostname }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ device.device_type or 'Unknown' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge" {% if device.group_color %}style="background-color: {{ device.group_color }}"{% else %}style="background-color: #6c757d"{% endif %}>
+                                            {{ device.group_name or 'Default' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted timestamp" data-timestamp="{{ device.last_seen }}">
+                                            {{ device.last_seen if device.last_seen else 'Never' }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('device_detail', ip_address=device.ip_address) }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    onclick="checkDeviceStatus('{{ device.ip_address }}')">
+                                                <i class="bi bi-arrow-clockwise"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox display-4 text-muted"></i>
+                        <h4 class="mt-3 text-muted">No devices found</h4>
+                        <p class="text-muted">Start by scanning your network to discover devices.</p>
+                        <a href="{{ url_for('scan_page') }}" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Scan Network
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart Data -->
+{% if stats.devices_by_group %}
+<script id="chartData" type="application/json">
+{
+    "labels": {{ stats.devices_by_group|map(attribute='name')|list|tojson }},
+    "counts": {{ stats.devices_by_group|map(attribute='count')|list|tojson }},
+    "colors": {{ stats.devices_by_group|map(attribute='color')|list|tojson }}
+}
+</script>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script>
+// Chart.js for device groups
+(function() {
+    const dataElement = document.getElementById('chartData');
+    if (dataElement) {
+        const chartData = JSON.parse(dataElement.textContent);
+        const ctx = document.getElementById('deviceGroupChart');
+        
+        if (ctx) {
+            new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        data: chartData.counts,
+                        backgroundColor: chartData.colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+    }
+})();
+
+// Moment.js helper
+function moment(dateString) {
+    return {
+        fromNow: function() {
+            return window.moment ? window.moment(dateString).fromNow() : dateString;
+        }
+    };
+}
+
+// Refresh statistics
+function refreshStats() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('activeDevices').textContent = data.active_devices;
+            document.getElementById('offlineDevices').textContent = data.offline_devices;
+            
+            // Update recent changes
+            updateRecentChanges(data.recent_changes);
+        })
+        .catch(error => console.error('Error refreshing stats:', error));
+}
+
+// Update recent changes table
+function updateRecentChanges(changes) {
+    const tbody = document.getElementById('recentChanges');
+    if (!tbody || !changes) return;
+    
+    tbody.innerHTML = '';
+    changes.forEach(change => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <strong>${change.custom_name || change.hostname || change.ip_address}</strong>
+                ${change.custom_name && change.hostname ? `<br><small class="text-muted">${change.hostname}</small>` : ''}
+            </td>
+            <td>
+                <span class="badge bg-${change.status === 'online' ? 'success' : 'danger'}">
+                    ${change.status.charAt(0).toUpperCase() + change.status.slice(1)}
+                </span>
+            </td>
+            <td>
+                <small class="text-muted">${moment(change.timestamp).fromNow()}</small>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Check single device status
+function checkDeviceStatus(ipAddress) {
+    const button = event.target.closest('button');
+    const icon = button.querySelector('i');
+    
+    // Show loading
+    icon.className = 'bi bi-arrow-repeat';
+    button.disabled = true;
+    
+    fetch(`/api/device/${ipAddress}/check`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update status indicator in table
+        const row = document.querySelector(`[data-ip="${ipAddress}"]`);
+        if (row) {
+            const statusBadge = row.querySelector('.status-indicator');
+            if (data.status === 'online') {
+                statusBadge.className = 'status-indicator badge bg-success';
+                statusBadge.innerHTML = '<i class="bi bi-check-circle"></i> Online';
+            } else {
+                statusBadge.className = 'status-indicator badge bg-danger';
+                statusBadge.innerHTML = '<i class="bi bi-x-circle"></i> Offline';
+            }
+        }
+        
+        // Reset button
+        icon.className = 'bi bi-arrow-clockwise';
+        button.disabled = false;
+        
+        // Show toast notification
+        showToast(`Device ${ipAddress} is ${data.status}`, data.status === 'online' ? 'success' : 'warning');
+    })
+    .catch(error => {
+        console.error('Error checking device status:', error);
+        icon.className = 'bi bi-arrow-clockwise';
+        button.disabled = false;
+        showToast('Error checking device status', 'error');
+    });
+}
+
+// Auto-refresh every 30 seconds
+setInterval(refreshStats, 30000);
+
+// Format timestamps on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.timestamp').forEach(function(el) {
+        const timestamp = el.getAttribute('data-timestamp');
+        if (timestamp && timestamp !== 'None' && timestamp !== 'Never') {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) el.textContent = 'Just now';
+            else if (diffMins < 60) el.textContent = diffMins + ' min' + (diffMins > 1 ? 's' : '') + ' ago';
+            else if (diffHours < 24) el.textContent = diffHours + ' hour' + (diffHours > 1 ? 's' : '') + ' ago';
+            else if (diffDays < 30) el.textContent = diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
+            else el.textContent = date.toLocaleString();
+        }
+    });
+});
+</script>
+{% endblock %}
